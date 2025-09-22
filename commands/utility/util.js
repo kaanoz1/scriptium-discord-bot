@@ -1,13 +1,4 @@
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getEmbedResponse = exports.UNDEFINED_TRANSLATION_TEXT = exports.verseDTOToVerseCacheDTO = exports.fetchVerse = exports.isValidInformation = exports.isValidVerse = exports.isValidChapter = exports.isValidSection = exports.isValidScriptureCode = exports.AvailableScripturesData = exports.AvailableScriptureCodes = void 0;
 const discord_js_1 = require("discord.js");
@@ -222,22 +213,20 @@ const isValidSection = (scriptureCode, sectionNumber) => {
 };
 exports.isValidSection = isValidSection;
 const isValidChapter = (scriptureCode, sectionNumber, chapterNumber) => {
-    var _a, _b;
     if (!(0, exports.isValidScriptureCode)(scriptureCode))
         return false;
     const chapterNumberIndex = chapterNumber - 1;
-    return (((_b = (_a = exports.AvailableScripturesData[scriptureCode].sections
-        .at(sectionNumber - 1)) === null || _a === void 0 ? void 0 : _a.chapters) === null || _b === void 0 ? void 0 : _b.at(chapterNumberIndex)) !== undefined);
+    return (exports.AvailableScripturesData[scriptureCode].sections[sectionNumber - 1]
+        ?.chapters?.[chapterNumberIndex] !== undefined);
 };
 exports.isValidChapter = isValidChapter;
 const isValidVerse = (scriptureCode, sectionNumber, chapterNumber, verseNumber) => {
-    var _a, _b;
     if (!(0, exports.isValidScriptureCode)(scriptureCode))
         return false;
     const sectionNumberIndex = sectionNumber - 1;
     const chapterNumberIndex = chapterNumber - 1;
-    const verseNumberInData = (_b = (_a = exports.AvailableScripturesData[scriptureCode].sections
-        .at(sectionNumberIndex)) === null || _a === void 0 ? void 0 : _a.chapters) === null || _b === void 0 ? void 0 : _b.at(chapterNumberIndex);
+    const verseNumberInData = exports.AvailableScripturesData[scriptureCode].sections[sectionNumberIndex]
+        ?.chapters[chapterNumberIndex];
     if (verseNumberInData == undefined)
         return false;
     return verseNumber <= verseNumberInData;
@@ -251,13 +240,13 @@ const isValidInformation = (scriptureCode, sectionNumber, chapterNumber, verseNu
     if (sectionNumber == null)
         return output;
     const sectionNumberIndex = sectionNumber - 1;
-    const section = scripture.sections.at(sectionNumberIndex);
+    const section = scripture.sections[sectionNumberIndex];
     if (section == undefined)
         return output.concat(`There is no section with number: ${sectionNumber}, belonging to Scripture with code: ${scriptureCode}`);
     if (chapterNumber == null)
         return output;
     const chapterNumberIndex = chapterNumber - 1;
-    const chapterVerseCount = section.chapters.at(chapterNumberIndex);
+    const chapterVerseCount = section.chapters[chapterNumberIndex];
     if (chapterVerseCount == undefined)
         return output.concat(`There is no chapter with number: ${chapterNumber}, belonging to Scripture with code: ${scriptureCode} and section with number: ${sectionNumber}`);
     if (verseNumber == null)
@@ -268,24 +257,24 @@ const isValidInformation = (scriptureCode, sectionNumber, chapterNumber, verseNu
     return output;
 };
 exports.isValidInformation = isValidInformation;
-const fetchVerse = (scriptureCode, sectionNumber, chapterNumber, verseNumber) => __awaiter(void 0, void 0, void 0, function* () {
+const fetchVerse = async (scriptureCode, sectionNumber, chapterNumber, verseNumber) => {
     const scripture = exports.AvailableScriptureCodes[scriptureCode];
     const url = `${__1.SERVER_URL}/verse/${scripture.number}/${sectionNumber}/${chapterNumber}/${verseNumber}`;
-    const response = yield fetch(url);
+    const response = await fetch(url);
     if (response.status !== OK_RESPONSE_CODE)
         return null;
-    const data = (yield response.json()).data;
+    const data = (await response.json()).data;
     return (0, exports.verseDTOToVerseCacheDTO)(data);
-});
+};
 exports.fetchVerse = fetchVerse;
 const verseDTOToVerseCacheDTO = (verseDTO) => {
-    var _a;
     const scriptureCode = verseDTO.chapter.section.scripture.code;
     const sectionNumber = verseDTO.chapter.section.number;
     const chapterNumber = verseDTO.chapter.number;
     const scripture = exports.AvailableScripturesData[scriptureCode];
-    const section = scripture.sections.at(sectionNumber);
-    const englishMeaningOfSection = (_a = section === null || section === void 0 ? void 0 : section.enMeaning) !== null && _a !== void 0 ? _a : "Unknown section. This should not be occurred, please report this issue by your command input.";
+    const section = scripture.sections[sectionNumber];
+    const englishMeaningOfSection = section?.enMeaning ??
+        "Unknown section. This should not be occurred, please report this issue by your command input.";
     const englishMeaningOfScripture = scripture.enMeaning;
     return {
         id: verseDTO.id,
@@ -315,26 +304,25 @@ exports.UNDEFINED_TRANSLATION_TEXT = {
         translators: [],
     },
     footNotes: [],
-    text: "Unknown translation text, this should not be occurred, please report this circumstance.",
+    text: "Translation you have selected did not translated the verse you want to read or something went wrong. Try default translation, if this situation persists, feel free to report this.",
 };
 const getEmbedResponse = (verse, translationId, textVariation) => {
-    var _a, _b;
     const scriptureCode = verse.scriptureCode;
     const sectionNumber = verse.sectionNumber;
     const chapterNumber = verse.chapterNumber;
     const verseNumber = verse.number;
-    const verseText = (_a = verse[textVariation]) !== null && _a !== void 0 ? _a : verse.text;
+    const verseText = verse[textVariation] ?? verse.text;
     const scriptureOfVerse = exports.AvailableScriptureCodes[verse.scriptureCode];
     const scriptureMeaning = getScriptureMeaning(scriptureCode);
     const sectionMeaning = getSectionMeaning(scriptureCode, sectionNumber);
-    const preferredTranslation = (_b = verse.translationTexts.find((t) => t.translation.id ==
-        (translationId !== null && translationId !== void 0 ? translationId : scriptureOfVerse.defaultTranslationId))) !== null && _b !== void 0 ? _b : exports.UNDEFINED_TRANSLATION_TEXT;
+    const preferredTranslation = verse.translationTexts.find((t) => t.translation.id ==
+        (translationId ?? scriptureOfVerse.defaultTranslationId)) ?? exports.UNDEFINED_TRANSLATION_TEXT;
     const translatorNamesGathered = preferredTranslation.translation.translators.map((t) => t.name).join(", ");
     const embed = new discord_js_1.EmbedBuilder()
-        .setTitle(`${scriptureMeaning} > ${sectionMeaning} (${sectionNumber}) > Chapter: ${chapterNumber}, ${verseNumber}`)
+        .setTitle(`${scriptureMeaning} > ${sectionNumber}.${sectionMeaning}  > Chapter: ${chapterNumber} > Verse: ${verseNumber}`)
         .setURL(`${__1.WEBSITE_URL}/${scriptureCode}/${sectionNumber}/${chapterNumber}/${verseNumber}`)
         .setDescription(preferredTranslation.text)
-        .addFields({ name: "Original Text", value: verseText, inline: false })
+        .addFields({ name: "Variation", value: verseText, inline: false })
         .addFields({
         name: "Translation",
         value: `${preferredTranslation.translation.name} - ${translatorNamesGathered}`,
@@ -343,8 +331,6 @@ const getEmbedResponse = (verse, translationId, textVariation) => {
     return embed;
 };
 exports.getEmbedResponse = getEmbedResponse;
-const getSectionMeaning = (scriptureCode, sectionNumber) => {
-    var _a, _b;
-    return (_b = (_a = exports.AvailableScripturesData[scriptureCode].sections.at(sectionNumber - 1)) === null || _a === void 0 ? void 0 : _a.enMeaning) !== null && _b !== void 0 ? _b : "Section";
-};
+const getSectionMeaning = (scriptureCode, sectionNumber) => exports.AvailableScripturesData[scriptureCode].sections[sectionNumber - 1]
+    ?.enMeaning ?? "Section";
 const getScriptureMeaning = (scriptureCode) => exports.AvailableScripturesData[scriptureCode].enMeaning;

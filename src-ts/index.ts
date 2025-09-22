@@ -1,63 +1,59 @@
 import dotenv from "dotenv";
-
-dotenv.config();
-
-const discordBotToken: string | undefined = process.env["DISCORD_BOT_TOKEN"];
-const clientId: string | undefined = process.env["DISCORD_CLIENT_ID"];
-const guildId: string | undefined = process.env["GUILD_ID"];
-export const SERVER_URL: string | undefined = process.env["SERVER_URL"];
-export const WEBSITE_URL: string | undefined = process.env["WEBSITE_URL"];
-
-if (!discordBotToken || !clientId || !guildId || !SERVER_URL || !WEBSITE_URL)
-  throw new Error("Some of env variables are not initialized.");
-
 import {
   Client,
   GatewayIntentBits,
-  REST,
-  Routes,
-  Interaction,
   Events,
+  Interaction,
   Collection,
 } from "discord.js";
-import { Command } from "./types/types";
-import readCommand from "./commands/read";
 
-const commands: Array<Command> = [readCommand];
+import pingCommand from "./commands/ping";
+import { Command } from "./utility/types";
+import verseCommand from "./commands/verse/command";
+import chapterCommand from "./commands/chapter/command";
+import sectionCommand from "./commands/section/command";
+import scriptureCommand from "./commands/scripture/command";
 
+dotenv.config();
+
+//https://discord.com/oauth2/authorize?client_id=1336220556227383327
+
+const discordBotToken: string | undefined = process.env["DISCORD_BOT_TOKEN"];
+export const SERVER_URL: string | undefined = process.env["SERVER_URL"];
+export const WEBSITE_URL: string | undefined = process.env["WEBSITE_URL"];
+if (!discordBotToken)
+  throw new Error("DISCORD_BOT_TOKEN env variable is not set.");
+
+if (!SERVER_URL) throw new Error("SERVER_URL env variable is not set.");
+if (!WEBSITE_URL) throw new Error("WEBSITE_URL env variable is not set.");
+
+const commands: Array<Command> = [
+  scriptureCommand,
+  sectionCommand,
+  chapterCommand,
+  verseCommand,
+  pingCommand,
+];
 const commandMap = new Collection<string, Command>();
-for (const cmd of commands) commandMap.set(cmd.data.name, cmd);
-
 const cooldowns = new Collection<string, Collection<string, number>>();
 
+for (const cmd of commands) commandMap.set(cmd.data.name, cmd);
+
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds],
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+  ],
 });
-
-const rest = new REST({ version: "10" }).setToken(discordBotToken);
-
-const main: () => Promise<void> = async () => {
-  try {
-    await rest.put(Routes.applicationGuildCommands(clientId, guildId), {
-      body: commands.map((cmd) => cmd.data.toJSON()),
-    });
-
-    client.login(discordBotToken);
-  } catch (error) {
-    console.error(error);
-    process.exit(1);
-  }
-};
 
 client.on(Events.InteractionCreate, async (interaction: Interaction) => {
   if (!interaction.isChatInputCommand()) return;
 
   const command = commandMap.get(interaction.commandName);
-
   if (!command) {
     await interaction.reply({
-      content: "There is no command like that.",
-      ephemeral: true,
+      content: "❌ This command doesn't exist.",
     });
     return;
   }
@@ -78,15 +74,13 @@ client.on(Events.InteractionCreate, async (interaction: Interaction) => {
       if (now < expirationTime) {
         const timeLeft = ((expirationTime - now) / 1000).toFixed(1);
         await interaction.reply({
-          content: `⏳ Please wait **${timeLeft} seconds** before using the \`${command.data.name}\` command again.`,
-          ephemeral: true,
+          content: `⏳ Please wait **${timeLeft} seconds** before using \`${command.data.name}\` again.`,
         });
         return;
       }
     }
 
     timestamps.set(interaction.user.id, now);
-
     setTimeout(() => timestamps.delete(interaction.user.id), cooldownAmount);
   }
 
@@ -95,15 +89,14 @@ client.on(Events.InteractionCreate, async (interaction: Interaction) => {
   } catch (err) {
     console.error(err);
     await interaction.reply({
-      content:
-        "There is an error while executing the command. If it persists, please report this issue.",
-      ephemeral: true,
+      content: "⚠️ There was an error executing the command.",
     });
   }
 });
 
 client.once(Events.ClientReady, () => {
-  console.log(`${client.user?.tag} logged in!`);
+  console.log(`✅ Bot logged in as ${client.user?.tag}`);
+  console.log(commands);
 });
 
-main();
+client.login(discordBotToken);

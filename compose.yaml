@@ -1,0 +1,8 @@
+services:
+  scriptiumdiscordbot:
+    image: scriptiumdiscordbot
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    environment:
+      NODE_ENV: production

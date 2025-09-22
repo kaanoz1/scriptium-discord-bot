@@ -1,58 +1,43 @@
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.WEBSITE_URL = exports.SERVER_URL = void 0;
 const dotenv_1 = __importDefault(require("dotenv"));
-dotenv_1.default.config();
-const discordBotToken = process.env["DISCORD_BOT_TOKEN"];
-const clientId = process.env["DISCORD_CLIENT_ID"];
-const guildId = process.env["GUILD_ID"];
-exports.SERVER_URL = process.env["SERVER_URL"];
-exports.WEBSITE_URL = process.env["WEBSITE_URL"];
-if (!discordBotToken || !clientId || !guildId || !exports.SERVER_URL || !exports.WEBSITE_URL)
-    throw new Error("Some of env variables are not initialized.");
 const discord_js_1 = require("discord.js");
 const read_1 = __importDefault(require("./commands/read"));
-const commands = [read_1.default];
+const ping_1 = __importDefault(require("./commands/ping"));
+dotenv_1.default.config();
+//https://discord.com/oauth2/authorize?client_id=1336220556227383327
+const discordBotToken = process.env["DISCORD_BOT_TOKEN"];
+exports.SERVER_URL = process.env["SERVER_URL"];
+exports.WEBSITE_URL = process.env["WEBSITE_URL"];
+if (!discordBotToken)
+    throw new Error("DISCORD_BOT_TOKEN env variable is not set.");
+if (!exports.SERVER_URL)
+    throw new Error("SERVER_URL env variable is not set.");
+if (!exports.WEBSITE_URL)
+    throw new Error("WEBSITE_URL env variable is not set.");
+const commands = [read_1.default, ping_1.default];
 const commandMap = new discord_js_1.Collection();
+const cooldowns = new discord_js_1.Collection();
 for (const cmd of commands)
     commandMap.set(cmd.data.name, cmd);
-const cooldowns = new discord_js_1.Collection();
 const client = new discord_js_1.Client({
-    intents: [discord_js_1.GatewayIntentBits.Guilds],
+    intents: [
+        discord_js_1.GatewayIntentBits.Guilds,
+        discord_js_1.GatewayIntentBits.GuildMessages,
+        discord_js_1.GatewayIntentBits.MessageContent,
+    ],
 });
-const rest = new discord_js_1.REST({ version: "10" }).setToken(discordBotToken);
-const main = () => __awaiter(void 0, void 0, void 0, function* () {
-    try {
-        yield rest.put(discord_js_1.Routes.applicationGuildCommands(clientId, guildId), {
-            body: commands.map((cmd) => cmd.data.toJSON()),
-        });
-        client.login(discordBotToken);
-    }
-    catch (error) {
-        console.error(error);
-        process.exit(1);
-    }
-});
-client.on(discord_js_1.Events.InteractionCreate, (interaction) => __awaiter(void 0, void 0, void 0, function* () {
+client.on(discord_js_1.Events.InteractionCreate, async (interaction) => {
     if (!interaction.isChatInputCommand())
         return;
     const command = commandMap.get(interaction.commandName);
     if (!command) {
-        yield interaction.reply({
-            content: "There is no command like that.",
-            ephemeral: true,
+        await interaction.reply({
+            content: "❌ This command doesn't exist.",
         });
         return;
     }
@@ -67,9 +52,8 @@ client.on(discord_js_1.Events.InteractionCreate, (interaction) => __awaiter(void
             const expirationTime = timestamps.get(interaction.user.id) + cooldownAmount;
             if (now < expirationTime) {
                 const timeLeft = ((expirationTime - now) / 1000).toFixed(1);
-                yield interaction.reply({
-                    content: `⏳ Please wait **${timeLeft} seconds** before using the \`${command.data.name}\` command again.`,
-                    ephemeral: true,
+                await interaction.reply({
+                    content: `⏳ Please wait **${timeLeft} seconds** before using \`${command.data.name}\` again.`,
                 });
                 return;
             }
@@ -78,18 +62,17 @@ client.on(discord_js_1.Events.InteractionCreate, (interaction) => __awaiter(void
         setTimeout(() => timestamps.delete(interaction.user.id), cooldownAmount);
     }
     try {
-        yield command.execute(interaction);
+        await command.execute(interaction);
     }
     catch (err) {
         console.error(err);
-        yield interaction.reply({
-            content: "There is an error while executing the command. If it persists, please report this issue.",
-            ephemeral: true,
+        await interaction.reply({
+            content: "⚠️ There was an error executing the command.",
         });
     }
-}));
-client.once(discord_js_1.Events.ClientReady, () => {
-    var _a;
-    console.log(`${(_a = client.user) === null || _a === void 0 ? void 0 : _a.tag} logged in!`);
 });
-main();
+client.once(discord_js_1.Events.ClientReady, () => {
+    console.log(`✅ Bot logged in as ${client.user?.tag}`);
+    console.log(commands);
+});
+client.login(discordBotToken);
